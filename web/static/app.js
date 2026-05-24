@@ -18,6 +18,18 @@ function selectedRange() {
   return { start, end };
 }
 
+function filenameFromDisposition(header) {
+  if (!header) return "beatprints-poster.png";
+
+  const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match) {
+    return decodeURIComponent(utf8Match[1]);
+  }
+
+  const asciiMatch = header.match(/filename="?([^"]+)"?/i);
+  return asciiMatch ? asciiMatch[1] : "beatprints-poster.png";
+}
+
 function renderResults() {
   const container = $("#results");
   container.innerHTML = "";
@@ -151,22 +163,32 @@ async function generatePoster() {
       accent: $("#accent").checked,
     }),
   });
-  const payload = await response.json();
   $("#generate").disabled = false;
 
-  if (!response.ok || payload.error) {
+  if (!response.ok) {
+    const payload = response.headers.get("Content-Type")?.includes("application/json")
+      ? await response.json()
+      : { error: await response.text() };
     setStatus("Generate failed");
     alert(payload.error || "Poster generation failed.");
     return;
   }
 
-  state.poster = payload.image;
+  if (state.poster) {
+    URL.revokeObjectURL(state.poster);
+  }
+
+  const blob = await response.blob();
+  const imageUrl = URL.createObjectURL(blob);
+  const filename = filenameFromDisposition(response.headers.get("Content-Disposition"));
+
+  state.poster = imageUrl;
   const poster = $("#poster");
-  poster.src = `${payload.image}?t=${Date.now()}`;
+  poster.src = imageUrl;
   poster.hidden = false;
   $("#emptyState").hidden = true;
-  $("#download").href = payload.image;
-  $("#download").download = payload.filename;
+  $("#download").href = imageUrl;
+  $("#download").download = filename;
   $("#download").classList.remove("disabled");
   setStatus("Poster ready");
 }

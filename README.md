@@ -97,12 +97,48 @@ Then open:
 http://127.0.0.1:8010
 ```
 
-The web UI supports track search, result selection, LRCLIB lyrics lookup, theme selection, accent color, poster generation, preview, and download.
+The web UI supports track search, result selection, LRCLIB lyrics lookup with a lyrics.ovh fallback, manual lyrics entry, theme selection, accent color, poster generation, preview, and download.
+
+Generated posters are returned directly from `/api/generate` as `image/png`. The browser previews the response with a temporary blob URL and uses that same blob for download. This avoids depending on a persistent server `output/` directory and is the preferred contract for serverless deployments such as Vercel.
 
 ## ☁️ Deploy
 
 BeatPrints Open is a dynamic Python web service. It must run as a web service or
 container, not as a static site.
+
+### Vercel direction
+
+The current local server is a long-running Python HTTP server. To deploy on Vercel,
+split the UI and API into Vercel's serverless shape:
+
+- Move static frontend files to `public/`.
+- Move `/api/search`, `/api/lyrics`, and `/api/generate` into Python functions under `api/`.
+- Keep `/api/generate` returning `image/png` directly instead of writing to `output/`.
+- Use `/tmp` only as short-lived scratch space during image generation.
+
+Direct image responses are the lowest-cost option because no generated posters are
+stored after the request. Refreshing the page loses the temporary preview URL, so
+the user must regenerate the poster if they need it again.
+
+### Future image storage options
+
+If generated posters need permanent URLs, history, or share links, add object
+storage after generation:
+
+- Vercel Blob: easiest on Vercel. Hobby includes limited free usage; Pro can pay
+  for additional usage. Best when staying inside the Vercel platform.
+- Cloudflare R2: best low-cost generic image storage. It has a larger free tier
+  than Vercel Blob for storage and operations, and direct R2 egress is free. Best
+  choice for a simple poster image bucket.
+- Cloudinary: best if you want a media dashboard, search, CDN delivery, and image
+  transformation features. Its free plan uses monthly credits across storage,
+  bandwidth, and transformations, so it is more feature-rich but less direct than R2.
+
+Recommended upgrade path:
+
+1. Start with direct `image/png` responses.
+2. Add Cloudflare R2 when posters need permanent shareable URLs.
+3. Consider Cloudinary only if media management and transformations become useful.
 
 ### Render
 
@@ -128,9 +164,9 @@ fly launch --no-deploy
 fly deploy
 ```
 
-Generated posters are written to the container filesystem. For a personal demo
-this is fine; for a public service, move generated files to object storage and
-add rate limiting.
+Generated posters are returned directly by the API. For a public service, add
+rate limiting. If users need persistent poster URLs, upload generated PNG files
+to object storage such as Cloudflare R2, Vercel Blob, or Cloudinary.
 
 ## 🖼️ Examples
 

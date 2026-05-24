@@ -7,13 +7,14 @@ import json
 import mimetypes
 import os
 import sys
+import tempfile
 import time
 
 from dataclasses import asdict
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -29,7 +30,6 @@ from BeatPrints import errors, lyrics, poster, spotify  # noqa: E402
 
 SPOTIFY = spotify.Spotify()
 LYRICS = lyrics.Lyrics()
-POSTER = poster.Poster(str(OUTPUT_DIR))
 THEMES = ["Light", "Dark", "Catppuccin", "Gruvbox", "Nord", "RosePine", "Everforest"]
 
 
@@ -58,8 +58,8 @@ def _line_range(lines: list[str], start: int, end: int) -> str:
     return "\n".join(selected)
 
 
-def _latest_created(before: set[Path]) -> Path | None:
-    after = set(OUTPUT_DIR.glob("*.png"))
+def _latest_created_in(directory: Path, before: set[Path]) -> Path | None:
+    after = set(directory.glob("*.png"))
     created = after - before
     if not created:
         return None
@@ -90,6 +90,19 @@ class AppHandler(BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK.value)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _send_png(self, data: bytes, filename: str):
+        safe_filename = filename if filename.isascii() else "poster.png"
+        encoded_filename = quote(filename)
+        self.send_response(HTTPStatus.OK.value)
+        self.send_header("Content-Type", "image/png")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header(
+            "Content-Disposition",
+            f"inline; filename=\"{safe_filename}\"; filename*=UTF-8''{encoded_filename}",
+        )
         self.end_headers()
         self.wfile.write(data)
 
@@ -199,28 +212,29 @@ class AppHandler(BaseHTTPRequestHandler):
                 )
                 return
 
-            OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            before = set(OUTPUT_DIR.glob("*.png"))
-
             try:
-                POSTER.track(track, selected, accent=accent, theme=theme)
+                with tempfile.TemporaryDirectory(prefix="beatprints-") as temp_dir:
+                    temp_output = Path(temp_dir)
+                    before = set(temp_output.glob("*.png"))
+                    poster.Poster(str(temp_output)).track(
+                        track,
+                        selected,
+                        accent=accent,
+                        theme=theme,
+                    )
+
+                    time.sleep(0.05)
+                    created = _latest_created_in(temp_output, before)
+                    if created is None:
+                        self._send_json(
+                            {"error": "Poster was generated but no output file was found."}
+                        )
+                        return
+
+                    self._send_png(created.read_bytes(), created.name)
             except Exception as exc:
                 self._send_json({"error": str(exc)}, HTTPStatus.BAD_GATEWAY)
                 return
-
-            time.sleep(0.05)
-            created = _latest_created(before)
-            if created is None:
-                self._send_json({"error": "Poster was generated but no output file was found."})
-                return
-
-            self._send_json(
-                {
-                    "image": f"/output/{created.name}",
-                    "filename": created.name,
-                    "lyrics": selected,
-                }
-            )
             return
 
         self.send_error(HTTPStatus.NOT_FOUND.value)
