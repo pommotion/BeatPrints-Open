@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BeatPrints Open</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="workspace" aria-label="BeatPrints poster generator">
+        <aside class="controls">
+          <div class="brand">
+            <div>
+              <h1>BeatPrints Open</h1>
+              <p>Music poster generator</p>
+            </div>
+            <span class="status" id="status">Ready</span>
+          </div>
+
+          <form class="search" id="searchForm">
+            <label for="query">Track search</label>
+            <div class="search-row">
+              <input id="query" name="query" value="Saturn - SZA" autocomplete="off" />
+              <button type="submit">Search</button>
+            </div>
+          </form>
+
+          <div class="section-head">
+            <h2>Results</h2>
+            <span id="resultCount">0</span>
+          </div>
+          <div class="results" id="results" aria-live="polite"></div>
+
+          <div class="form-grid">
+            <label for="theme">Theme</label>
+            <select id="theme">
+              <option>Light</option>
+              <option>Dark</option>
+              <option>Catppuccin</option>
+              <option>Gruvbox</option>
+              <option>Nord</option>
+              <option>RosePine</option>
+              <option>Everforest</option>
+            </select>
+
+            <label for="lineStart">Lyrics lines</label>
+            <div class="range-row">
+              <input id="lineStart" type="number" min="1" value="1" />
+              <span>to</span>
+              <input id="lineEnd" type="number" min="1" value="4" />
+            </div>
+
+            <label class="toggle">
+              <input id="accent" type="checkbox" checked />
+              <span>Color accent</span>
+            </label>
+          </div>
+
+          <div class="manual-lyrics">
+            <label for="customLyrics">Manual lyrics</label>
+            <textarea id="customLyrics" rows="4" placeholder="Paste or write four lyric lines when lookup misses"></textarea>
+            <p id="lyricsNotice">Lyrics lookup will try LRCLIB, then lyrics.ovh.</p>
+          </div>
+
+          <button class="generate" id="generate" disabled>Generate poster</button>
+        </aside>
+
+        <section class="preview">
+          <header class="topbar">
+            <div>
+              <strong id="previewTitle">Choose a track</strong>
+              <span id="previewMeta">Apple Music metadata, LRCLIB lyrics</span>
+            </div>
+            <a class="download disabled" id="download" href="#" download>Download</a>
+          </header>
+
+          <div class="poster-stage">
+            <div class="empty" id="emptyState">
+              <div class="disc"></div>
+              <p>Search a track, pick lyrics, then generate a print-ready poster.</p>
+            </div>
+            <img id="poster" alt="Generated BeatPrints poster" hidden />
+          </div>
+
+          <div class="lyrics-panel">
+            <div class="section-head">
+              <h2>Lyrics</h2>
+              <span id="lyricsCount">0 lines</span>
+            </div>
+            <p class="lyrics-empty" id="lyricsEmpty">No lyrics loaded.</p>
+            <ol id="lyrics"></ol>
+          </div>
+        </section>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

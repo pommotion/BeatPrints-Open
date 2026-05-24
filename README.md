@@ -106,15 +106,17 @@ Generated posters are returned directly from `/api/generate` as `image/png`. The
 BeatPrints Open is a dynamic Python web service. It must run as a web service or
 container, not as a static site.
 
-### Vercel direction
+### Vercel
 
-The current local server is a long-running Python HTTP server. To deploy on Vercel,
-split the UI and API into Vercel's serverless shape:
+This repository includes a Vercel-compatible serverless layout:
 
-- Move static frontend files to `public/`.
-- Move `/api/search`, `/api/lyrics`, and `/api/generate` into Python functions under `api/`.
-- Keep `/api/generate` returning `image/png` directly instead of writing to `output/`.
-- Use `/tmp` only as short-lived scratch space during image generation.
+- `public/` contains the static web UI.
+- `api/search.py`, `api/lyrics.py`, and `api/generate.py` are Python Vercel Functions.
+- `api/generate.py` returns `image/png` directly instead of writing to `output/`.
+- Image generation uses `/tmp` only as short-lived scratch space.
+
+Deploy from GitHub by importing the repository into Vercel. Vercel will install
+dependencies from `requirements.txt` and use `vercel.json` for function settings.
 
 Direct image responses are the lowest-cost option because no generated posters are
 stored after the request. Refreshing the page loses the temporary preview URL, so

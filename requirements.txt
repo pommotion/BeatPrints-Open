@@ -1,0 +1,6 @@
+requests
+pylette
+pillow
+lrclibapi
+fonttools
+qrcode

@@ -7,10 +7,7 @@ import json
 import mimetypes
 import os
 import sys
-import tempfile
-import time
 
-from dataclasses import asdict
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -25,45 +22,7 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from BeatPrints import errors, lyrics, poster, spotify  # noqa: E402
-
-
-SPOTIFY = spotify.Spotify()
-LYRICS = lyrics.Lyrics()
-THEMES = ["Light", "Dark", "Catppuccin", "Gruvbox", "Nord", "RosePine", "Everforest"]
-
-
-def _json_default(value):
-    if hasattr(value, "__dataclass_fields__"):
-        return asdict(value)
-    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
-
-
-def _metadata_from_payload(payload: dict) -> spotify.TrackMetadata:
-    required = ["name", "artist", "album", "released", "duration", "image", "label", "id"]
-    data = {key: str(payload.get(key, "")) for key in required}
-    return spotify.TrackMetadata(**data)
-
-
-def _line_range(lines: list[str], start: int, end: int) -> str:
-    cleaned = [line for line in lines if line.strip()]
-    if len(cleaned) < 4:
-        return "\n".join(cleaned)
-
-    start = max(start, 1)
-    end = min(end, len(cleaned))
-    selected = cleaned[start - 1 : end]
-    if len(selected) != 4:
-        selected = cleaned[:4]
-    return "\n".join(selected)
-
-
-def _latest_created_in(directory: Path, before: set[Path]) -> Path | None:
-    after = set(directory.glob("*.png"))
-    created = after - before
-    if not created:
-        return None
-    return max(created, key=lambda path: path.stat().st_mtime)
+from web import api_core  # noqa: E402
 
 
 class AppHandler(BaseHTTPRequestHandler):
@@ -73,7 +32,7 @@ class AppHandler(BaseHTTPRequestHandler):
         sys.stderr.write(f"[{self.log_date_time_string()}] {fmt % args}\n")
 
     def _send_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK):
-        body = json.dumps(payload, default=_json_default).encode("utf-8")
+        body = api_core.dumps_json(payload)
         self.send_response(status.value)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -142,18 +101,9 @@ class AppHandler(BaseHTTPRequestHandler):
                 return
 
             try:
-                if kind == "album":
-                    results = SPOTIFY.get_album(query, limit=limit)
-                else:
-                    results = SPOTIFY.get_track(query, limit=limit)
-            except (errors.NoMatchingTrackFound, errors.NoMatchingAlbumFound):
-                self._send_json({"results": []})
-                return
+                self._send_json(api_core.search_metadata(query, kind=kind, limit=limit))
             except Exception as exc:
                 self._send_json({"error": str(exc)}, HTTPStatus.BAD_GATEWAY)
-                return
-
-            self._send_json({"results": results})
             return
 
         self.send_error(HTTPStatus.NOT_FOUND.value)
@@ -167,21 +117,8 @@ class AppHandler(BaseHTTPRequestHandler):
             except ValueError as exc:
                 self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
                 return
-            track = _metadata_from_payload(payload.get("track", {}))
-
             try:
-                text, source = LYRICS.get_lyrics_with_source(track)
-                lines = [line for line in text.splitlines() if line.strip()]
-                self._send_json({"lyrics": text, "lines": lines, "source": source})
-            except errors.NoLyricsAvailable:
-                self._send_json(
-                    {
-                        "lyrics": "",
-                        "lines": [],
-                        "source": "",
-                        "warning": "No lyrics found. Enter custom lyrics to generate a poster.",
-                    }
-                )
+                self._send_json(api_core.lyrics_for_track(payload.get("track", {})))
             except Exception as exc:
                 self._send_json({"error": str(exc)}, HTTPStatus.BAD_GATEWAY)
             return
@@ -192,49 +129,13 @@ class AppHandler(BaseHTTPRequestHandler):
             except ValueError as exc:
                 self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
                 return
-            track = _metadata_from_payload(payload.get("track", {}))
-            theme = payload.get("theme", "Light")
-            accent = bool(payload.get("accent", False))
-            custom_lyrics = str(payload.get("customLyrics", "")).strip()
-            lines = payload.get("lines") or []
-            start = int(payload.get("start", 1))
-            end = int(payload.get("end", 4))
-
-            if theme not in THEMES:
-                self._send_json({"error": "Invalid theme."}, HTTPStatus.BAD_REQUEST)
-                return
-
-            selected = custom_lyrics or _line_range(lines, start, end)
-            if not selected:
-                self._send_json(
-                    {"error": "Select lyrics or enter custom lyrics."},
-                    HTTPStatus.BAD_REQUEST,
-                )
-                return
-
             try:
-                with tempfile.TemporaryDirectory(prefix="beatprints-") as temp_dir:
-                    temp_output = Path(temp_dir)
-                    before = set(temp_output.glob("*.png"))
-                    poster.Poster(str(temp_output)).track(
-                        track,
-                        selected,
-                        accent=accent,
-                        theme=theme,
-                    )
-
-                    time.sleep(0.05)
-                    created = _latest_created_in(temp_output, before)
-                    if created is None:
-                        self._send_json(
-                            {"error": "Poster was generated but no output file was found."}
-                        )
-                        return
-
-                    self._send_png(created.read_bytes(), created.name)
+                png, filename = api_core.generate_poster_png(payload)
+                self._send_png(png, filename)
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             except Exception as exc:
                 self._send_json({"error": str(exc)}, HTTPStatus.BAD_GATEWAY)
-                return
             return
 
         self.send_error(HTTPStatus.NOT_FOUND.value)
