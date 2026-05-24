@@ -99,6 +99,39 @@ http://127.0.0.1:8010
 
 The web UI supports track search, result selection, LRCLIB lyrics lookup, theme selection, accent color, poster generation, preview, and download.
 
+## ☁️ Deploy
+
+BeatPrints Open is a dynamic Python web service. It must run as a web service or
+container, not as a static site.
+
+### Render
+
+This repository includes `render.yaml` and `Dockerfile`.
+
+1. Push this repository to GitHub.
+2. In Render, create a new Blueprint or Web Service from the repository.
+3. Use the Docker runtime.
+4. Deploy.
+
+The service starts with:
+
+```bash
+python -m web.app --host 0.0.0.0
+```
+
+### Fly.io
+
+Copy `fly.toml.example` to `fly.toml`, change the app name, then run:
+
+```bash
+fly launch --no-deploy
+fly deploy
+```
+
+Generated posters are written to the container filesystem. For a personal demo
+this is fine; for a public service, move generated files to object storage and
+add rate limiting.
+
 ## 🖼️ Examples
 
 | **Track: Saturn by SZA**                                             | **Album: Charm by Clairo**                                             |
