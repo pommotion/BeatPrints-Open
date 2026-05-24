@@ -147,6 +147,9 @@ def scannable(
 
     variant = t.THEMES[theme]
 
+    if not id:
+        return link_code("BeatPrints Open", theme)
+
     if id.startswith(("http://", "https://")):
         return link_code(id, theme)
 
@@ -238,8 +241,15 @@ def cover(url: str, path: Optional[str]) -> Image.Image:
 
         img = crop(path_)
 
-    else:
+    elif url:
         img = Image.open(io.BytesIO(requests.get(url).content))
+    else:
+        img = Image.new("RGB", s.COVER, (232, 226, 216))
+        draw = ImageDraw.Draw(img)
+        for index in range(0, s.COVER[0], 18):
+            shade = 232 - (index % 90)
+            draw.rectangle((index, 0, index + 18, s.COVER[1]), fill=(shade, shade - 4, shade - 10))
+        return img
 
     # Apply the magic filter and resize the image
     return magicify(img.resize(s.COVER))

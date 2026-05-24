@@ -18,7 +18,12 @@
             <span class="status" id="status">Ready</span>
           </div>
 
-          <form class="search" id="searchForm">
+          <div class="tabs" role="tablist" aria-label="Input mode">
+            <button class="tab active" id="searchTab" type="button" data-mode="search">Search</button>
+            <button class="tab" id="manualTab" type="button" data-mode="manual">Manual</button>
+          </div>
+
+          <form class="mode-panel" id="searchForm">
             <label for="query">Track search</label>
             <div class="search-row">
               <input id="query" name="query" value="Saturn - SZA" autocomplete="off" />
@@ -26,11 +31,42 @@
             </div>
           </form>
 
-          <div class="section-head">
-            <h2>Results</h2>
-            <span id="resultCount">0</span>
+          <div class="mode-panel manual-panel" id="manualPanel" hidden>
+            <div class="form-grid compact">
+              <label for="manualName">Track name</label>
+              <input id="manualName" autocomplete="off" placeholder="Song title" />
+
+              <label for="manualArtist">Artist</label>
+              <input id="manualArtist" autocomplete="off" placeholder="Artist name" />
+
+              <label for="manualAlbum">Album</label>
+              <input id="manualAlbum" autocomplete="off" placeholder="Single or album" />
+
+              <label for="manualReleased">Release date</label>
+              <input id="manualReleased" autocomplete="off" placeholder="2026" />
+
+              <label for="manualDuration">Duration</label>
+              <input id="manualDuration" autocomplete="off" placeholder="03:30" />
+
+              <label for="manualLabel">Label</label>
+              <input id="manualLabel" autocomplete="off" placeholder="Independent" />
+
+              <label for="manualImage">Cover image URL</label>
+              <input id="manualImage" autocomplete="off" placeholder="https://..." />
+
+              <label for="manualLink">Playback link / QR</label>
+              <input id="manualLink" autocomplete="off" placeholder="https://..." />
+            </div>
+            <button class="apply-manual" id="applyManual" type="button">Use manual track</button>
           </div>
-          <div class="results" id="results" aria-live="polite"></div>
+
+          <div id="resultsBlock">
+            <div class="section-head">
+              <h2>Results</h2>
+              <span id="resultCount">0</span>
+            </div>
+            <div class="results" id="results" aria-live="polite"></div>
+          </div>
 
           <div class="form-grid">
             <label for="theme">Theme</label>
@@ -60,7 +96,7 @@
           <div class="manual-lyrics">
             <label for="customLyrics">Manual lyrics</label>
             <textarea id="customLyrics" rows="4" placeholder="Paste or write four lyric lines when lookup misses"></textarea>
-            <p id="lyricsNotice">Lyrics lookup will try LRCLIB, then lyrics.ovh.</p>
+            <p id="lyricsNotice">Search mode tries LRCLIB, then lyrics.ovh. Manual mode uses this text directly.</p>
           </div>
 
           <button class="generate" id="generate" disabled>Generate poster</button>

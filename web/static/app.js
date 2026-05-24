@@ -1,4 +1,5 @@
 const state = {
+  mode: "search",
   results: [],
   selected: null,
   lines: [],
@@ -12,10 +13,60 @@ function setStatus(text) {
   $("#status").textContent = text;
 }
 
+function fieldValue(selector, fallback = "") {
+  return $(selector).value.trim() || fallback;
+}
+
 function selectedRange() {
   const start = Number($("#lineStart").value || 1);
   const end = Number($("#lineEnd").value || 4);
   return { start, end };
+}
+
+function setMode(mode) {
+  state.mode = mode;
+  $("#searchTab").classList.toggle("active", mode === "search");
+  $("#manualTab").classList.toggle("active", mode === "manual");
+  $("#searchForm").hidden = mode !== "search";
+  $("#manualPanel").hidden = mode !== "manual";
+  $("#resultsBlock").hidden = mode !== "search";
+  setStatus(mode === "search" ? "Ready" : "Manual entry");
+}
+
+function manualTrack() {
+  const name = fieldValue("#manualName");
+  const artist = fieldValue("#manualArtist");
+
+  if (!name || !artist) {
+    alert("Track name and artist are required.");
+    return null;
+  }
+
+  return {
+    name,
+    artist,
+    album: fieldValue("#manualAlbum", "Single"),
+    released: fieldValue("#manualReleased", "Unreleased"),
+    duration: fieldValue("#manualDuration", "00:00"),
+    image: fieldValue("#manualImage"),
+    label: fieldValue("#manualLabel", "Independent"),
+    id: fieldValue("#manualLink"),
+  };
+}
+
+function applyManualTrack() {
+  const track = manualTrack();
+  if (!track) return;
+
+  state.selected = track;
+  state.lines = [];
+  state.lyricsSource = "Manual";
+  renderLyrics();
+  $("#previewTitle").textContent = `${track.name} · ${track.artist}`;
+  $("#previewMeta").textContent = `${track.album} · ${track.released}`;
+  $("#lyricsNotice").textContent = "Manual metadata is active. Paste lyrics below or leave them blank.";
+  $("#generate").disabled = false;
+  setStatus("Manual ready");
 }
 
 function filenameFromDisposition(header) {
@@ -92,7 +143,7 @@ async function search(event) {
   state.selected = null;
   state.lines = [];
   state.lyricsSource = "";
-  $("#lyricsNotice").textContent = "Lyrics lookup will try LRCLIB, then lyrics.ovh.";
+  $("#lyricsNotice").textContent = "Search mode tries LRCLIB, then lyrics.ovh. Manual mode uses this text directly.";
   $("#customLyrics").value = "";
   renderResults();
   renderLyrics();
@@ -145,6 +196,12 @@ async function selectTrack(track) {
 }
 
 async function generatePoster() {
+  if (state.mode === "manual") {
+    const track = manualTrack();
+    if (!track) return;
+    state.selected = track;
+  }
+
   if (!state.selected) return;
 
   setStatus("Generating");
@@ -195,7 +252,11 @@ async function generatePoster() {
 
 $("#searchForm").addEventListener("submit", search);
 $("#generate").addEventListener("click", generatePoster);
+$("#searchTab").addEventListener("click", () => setMode("search"));
+$("#manualTab").addEventListener("click", () => setMode("manual"));
+$("#applyManual").addEventListener("click", applyManualTrack);
 $("#lineStart").addEventListener("input", renderLyrics);
 $("#lineEnd").addEventListener("input", renderLyrics);
 
 renderResults();
+setMode("search");

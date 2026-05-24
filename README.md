@@ -97,7 +97,12 @@ Then open:
 http://127.0.0.1:8010
 ```
 
-The web UI supports track search, result selection, LRCLIB lyrics lookup with a lyrics.ovh fallback, manual lyrics entry, theme selection, accent color, poster generation, preview, and download.
+The web UI supports track search, result selection, LRCLIB lyrics lookup with a lyrics.ovh fallback, full manual track entry, manual lyrics entry, theme selection, accent color, poster generation, preview, and download.
+
+Use the **Manual** tab for unreleased songs or songs that are not available in
+Apple's catalog. Manual mode accepts track name, artist, album, release date,
+duration, label, cover image URL, playback link, and lyrics. The playback link is
+used for the poster's QR/scannable area, so it can point to any platform.
 
 Generated posters are returned directly from `/api/generate` as `image/png`. The browser previews the response with a temporary blob URL and uses that same blob for download. This avoids depending on a persistent server `output/` directory and is the preferred contract for serverless deployments such as Vercel.
 
@@ -141,6 +146,28 @@ Recommended upgrade path:
 1. Start with direct `image/png` responses.
 2. Add Cloudflare R2 when posters need permanent shareable URLs.
 3. Consider Cloudinary only if media management and transformations become useful.
+
+### Custom domain and access protection
+
+You can attach a Cloudflare-managed domain to the Vercel deployment:
+
+1. Add the domain in Vercel project settings under Domains.
+2. In Cloudflare DNS, point a subdomain such as `beatprints.example.com` to
+   `cname.vercel-dns.com` with a CNAME record.
+3. Keep the Cloudflare proxy disabled until Vercel finishes domain verification
+   and certificate provisioning. Re-enable proxy only after verifying the domain
+   works correctly.
+
+For login protection, the recommended options are:
+
+- Cloudflare Access: best for keeping the public app private behind an email,
+  identity provider, one-time PIN, or service policy. This works well when the
+  domain is managed by Cloudflare.
+- Vercel Deployment Protection: built into Vercel, but production password
+  protection depends on the account/team plan.
+- App-level username/password: possible, but this static + Python Functions
+  layout would need to route every page and API request through an auth layer.
+  Cloudflare Access is cleaner for this project.
 
 ### Render
 
