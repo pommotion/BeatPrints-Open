@@ -82,6 +82,23 @@ Here’s a short video showing how to generate posters using the CLI. For more i
 
 https://github.com/user-attachments/assets/3efb7028-c533-4bf4-880b-da3a71f8a3db
 
+## 🖥️ Local Web UI
+
+This fork also includes a local browser interface:
+
+```bash
+source .venv/bin/activate
+beatprints-web
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8010
+```
+
+The web UI supports track search, result selection, LRCLIB lyrics lookup, theme selection, accent color, poster generation, preview, and download.
+
 ## 🖼️ Examples
 
 | **Track: Saturn by SZA**                                             | **Album: Charm by Clairo**                                             |

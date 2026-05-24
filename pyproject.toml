@@ -9,7 +9,7 @@ readme = "README.md"
 keywords = ["music", "lyrics", "pinterest", "lrclibapi", "itunes", "deezer"]
 repository = "https://github.com/pommotion/BeatPrints-Open"
 
-packages = [{ include = "BeatPrints" }, { include = "cli" }]
+packages = [{ include = "BeatPrints" }, { include = "cli" }, { include = "web" }]
 
 [tool.poetry.dependencies]
 python = "^3.12"
@@ -25,6 +25,7 @@ qrcode = "*"
 
 [tool.poetry.scripts]
 beatprints = 'cli.prompt:main'
+beatprints-web = 'web.app:main'
 
 [tool.poetry.group.dev.dependencies]
 black = "*"
