@@ -9,7 +9,6 @@ authors = [{ name = "elysianmyst", email = "74355265+TrueMyst@users.noreply.gith
 keywords = ["music", "lyrics", "pinterest", "lrclibapi", "itunes", "deezer"]
 dependencies = [
     "requests",
-    "pylette",
     "pillow",
     "lrclibapi",
     "fonttools",
@@ -42,7 +41,6 @@ packages = [{ include = "BeatPrints" }, { include = "cli" }, { include = "web" }
 [tool.poetry.dependencies]
 python = "^3.12"
 requests = "*"
-pylette = "*"
 pillow = "*"
 lrclibapi = "*"
 fonttools = "*"

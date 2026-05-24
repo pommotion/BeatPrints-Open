@@ -13,7 +13,6 @@ import qrcode
 from pathlib import Path
 from typing import List, Literal, Tuple, Optional
 
-from Pylette import extract_colors
 from PIL import Image, ImageDraw, ImageEnhance
 from BeatPrints.consts import Size, Position, Color, ThemesSelector, FilePath
 
@@ -35,16 +34,20 @@ def get_palette(image: Image.Image) -> List[Tuple]:
     Returns:
         List[Tuple[int, int, int]]: A list of RGB tuples representing the dominant colors.
     """
-    with io.BytesIO() as byte_stream:
-        # Save image to in-memory byte stream
-        image.save(byte_stream, format="PNG")
+    quantized = image.convert("RGB").resize((96, 96)).quantize(colors=6)
+    palette = quantized.getpalette() or []
+    color_counts = quantized.getcolors(maxcolors=96 * 96) or []
+    color_counts.sort(reverse=True)
 
-        # Get byte data of the image
-        img_bytes = byte_stream.getvalue()
+    colors = []
+    for _count, palette_index in color_counts[:6]:
+        offset = palette_index * 3
+        colors.append(tuple(palette[offset : offset + 3]))
 
-    # Extract the dominant colors from the image
-    colors = extract_colors(image=img_bytes, palette_size=6, sort_mode="luminance")
-    return [tuple(color.rgb) for color in colors]
+    while len(colors) < 6:
+        colors.append(c.BLACK)
+
+    return colors
 
 
 def draw_palette(
