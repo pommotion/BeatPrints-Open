@@ -2,10 +2,12 @@
     <img src="https://i.ibb.co/CWY693F/beatprints-logo.png" width="175"/>
 </h3>
 <h3 align="center">
-    BeatPrints: Quick, stylish posters for your favorite tracks! 🎷☕️
+    BeatPrints Open: Quick, stylish posters for your favorite tracks!
 </h3>
 
-<p align="center">Create eye-catching, Pinterest-style music posters effortlessly. BeatPrints integrates with <b>Spotify</b> and <b>LRClib API</b> to help you design custom posters for your favorite tracks or albums. 🍀</p>
+<p align="center">Create eye-catching, Pinterest-style music posters without Spotify Premium. This fork uses Apple iTunes Search first, Deezer as a fallback, and LRCLIB for lyrics.</p>
+
+> This is a non-commercial derivative of [TrueMyst/BeatPrints](https://github.com/TrueMyst/BeatPrints). It remains licensed under CC BY-NC-SA 4.0. Major changes include replacing Spotify Premium-dependent metadata lookup with open metadata providers and rendering link QR codes instead of Spotify scannables.
 
 <p align="center">
   <a href="https://gitHub.com/TrueMyst/BeatPrints/graphs/commit-activity">
@@ -31,55 +33,30 @@
 
 ## 📦 Installation
 
-You can install BeatPrints via:
+You can install this fork from a local checkout:
 
 ```bash
-# For pip users
-pip install BeatPrints
-
-# For poetry users
-poetry add BeatPrints
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
 ```
-
-Or if you prefer using just the CLI:
-
-```bash
-pipx install BeatPrints
-```
-
-This will install the CLI, making it ready for you to use.
-For more more infomation, check out [pipx](https://github.com/pypa/pipx)
 
 ## 🚀 Quick Start
 
 ### 🌱 Environment Variables
 
-To get started with BeatPrints, you’ll need a `.env` file with these keys:
-
-```env
-SPOTIFY_CLIENT_ID = "<your-client-id>"
-SPOTIFY_CLIENT_SECRET = "<your-client-secret>"
-```
-
-You can get these from the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/) by creating a new app with **Web API** as the scope.
+No Spotify credentials are required for track or album lookup in this fork.
 
 ### 🎀 Creating your FIRST Poster
 Here’s how you can create your first poster:
 
 ```python
-import os, dotenv
 from BeatPrints import lyrics, poster, spotify
-
-dotenv.load_dotenv()
-
-# Spotify credentials
-CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
-CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
 
 # Initialize components
 ly = lyrics.Lyrics()
 ps = poster.Poster("./")
-sp = spotify.Spotify(CLIENT_ID, CLIENT_SECRET)
+sp = spotify.Spotify()
 
 # Search for the track and fetch metadata
 search = sp.get_track("Saturn - SZA", limit=1)
@@ -120,7 +97,7 @@ BeatPrints currently offers you **5 additional themes**  to use!
 - Rosepine
 - Everforest
 
-For more examples, check out the [examples directory](https://github.com/TrueMyst/BeatPrints/tree/main/examples).
+For original examples, check out the [upstream examples directory](https://github.com/TrueMyst/BeatPrints/tree/main/examples).
 
 
 ## ✨ Features
@@ -131,6 +108,7 @@ For more examples, check out the [examples directory](https://github.com/TrueMys
 - **Theme Customization**: Switch between different other themes.
 - **Track & Album Selection**: Highlight your favorite track or entire album.  
 - **Lyrics Highlighting**: Highlight your favourite lyrics directly on your poster.
+- **No Spotify Premium Required**: Track metadata comes from Apple iTunes Search with Deezer fallback.
 
 
 ## 🤝 Contributors

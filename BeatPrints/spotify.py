@@ -1,24 +1,28 @@
 """
 Module: spotify.py
 
-Provides functionality related to interacting with the Spotify API.
+Provides Spotify-compatible metadata classes backed by open catalog APIs.
 """
 
-import spotipy
-import random
 import datetime
+import random
+import requests
 
-from typing import List
 from dataclasses import dataclass
-
-from spotipy.oauth2 import SpotifyClientCredentials
-from spotipy.cache_handler import MemoryCacheHandler
+from typing import Any, List
+from urllib.parse import quote_plus
 
 from BeatPrints.errors import (
-    NoMatchingTrackFound,
-    NoMatchingAlbumFound,
     InvalidSearchLimit,
+    NoMatchingAlbumFound,
+    NoMatchingTrackFound,
 )
+
+
+ITUNES_SEARCH_URL = "https://itunes.apple.com/search"
+ITUNES_LOOKUP_URL = "https://itunes.apple.com/lookup"
+DEEZER_TRACK_SEARCH_URL = "https://api.deezer.com/search/track"
+REQUEST_TIMEOUT = 20
 
 
 @dataclass
@@ -54,193 +58,185 @@ class AlbumMetadata:
 
 class Spotify:
     """
-    A class for interacting with the Spotify API to search and retrieve track/album information.
+    A Spotify-compatible facade that searches public metadata catalogs.
+
+    The original BeatPrints API expected Spotify credentials. They are still
+    accepted for backwards compatibility, but are no longer used.
     """
 
-    def __init__(self, CLIENT_ID: str, CLIENT_SECRET: str) -> None:
-        """
-        Initializes the Spotify client with credentials and obtains an access token.
-
-        Args:
-            CLIENT_ID (str): Spotify API client ID.
-            CLIENT_SECRET (str): Spotify API client secret.
-        """
-        authorization = SpotifyClientCredentials(
-            client_id=CLIENT_ID,
-            client_secret=CLIENT_SECRET,
-            cache_handler=MemoryCacheHandler(),
+    def __init__(self, CLIENT_ID: str | None = None, CLIENT_SECRET: str | None = None):
+        self.CLIENT_ID = CLIENT_ID
+        self.CLIENT_SECRET = CLIENT_SECRET
+        self.session = requests.Session()
+        self.session.headers.update(
+            {
+                "User-Agent": (
+                    "BeatPrints-OpenMetadata/1.0 "
+                    "(https://github.com/TrueMyst/BeatPrints derivative)"
+                )
+            }
         )
 
-        self.spotify = spotipy.Spotify(client_credentials_manager=authorization)
+    def _format_released(self, release_date: str | None) -> str:
+        if not release_date:
+            return "Unknown"
 
-    def _format_released(self, release_date: str, precision: str) -> str:
-        """
-        Formats the release date of a track or album.
+        for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d", "%Y-%m", "%Y"):
+            try:
+                return datetime.datetime.strptime(release_date, fmt).strftime(
+                    "%B %d, %Y"
+                )
+            except ValueError:
+                continue
 
-        Args:
-            release_date (str): Release date string from Spotify API.
-            precision (str): Precision of the release date ('day', 'month', 'year').
+        return release_date
 
-        Returns:
-            str: Formatted release date in 'Month Day, Year' format.
-        """
-        # Format the release date based on the precision
-        date_format = {"day": "%Y-%m-%d", "month": "%Y-%m", "year": "%Y"}.get(
-            precision, ""
-        )
-        return datetime.datetime.strptime(release_date, date_format).strftime(
-            "%B %d, %Y"
-        )
+    def _format_duration(self, duration_ms: int | float | None = None) -> str:
+        if not duration_ms:
+            return "00:00"
 
-    def _format_duration(self, duration_ms: int) -> str:
-        """
-        Formats the duration of a track from milliseconds to MM:SS format.
-
-        Args:
-            duration_ms (int): Duration of the track in milliseconds.
-
-        Returns:
-            str: Formatted duration in MM:SS format.
-        """
-        # Convert milliseconds to minutes and seconds
+        duration_ms = int(duration_ms)
         minutes = duration_ms // 60000
         seconds = (duration_ms // 1000) % 60
         return f"{minutes:02d}:{seconds:02d}"
 
+    def _high_res_itunes_art(self, url: str | None) -> str:
+        if not url:
+            return ""
+
+        return (
+            url.replace("100x100bb.jpg", "1200x1200bb.jpg")
+            .replace("100x100bb.png", "1200x1200bb.png")
+            .replace("60x60bb.jpg", "1200x1200bb.jpg")
+            .replace("60x60bb.png", "1200x1200bb.png")
+        )
+
+    def _request_json(self, url: str, params: dict[str, Any]) -> dict[str, Any]:
+        response = self.session.get(url, params=params, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        return response.json()
+
+    def _track_from_itunes(self, item: dict[str, Any]) -> TrackMetadata:
+        return TrackMetadata(
+            name=item.get("trackName", "Unknown Track"),
+            artist=item.get("artistName", "Unknown Artist"),
+            album=item.get("collectionName", "Unknown Album"),
+            released=self._format_released(item.get("releaseDate")),
+            duration=self._format_duration(item.get("trackTimeMillis")),
+            image=self._high_res_itunes_art(item.get("artworkUrl100")),
+            label="Apple Music Catalog",
+            id=item.get("trackViewUrl") or item.get("collectionViewUrl") or "",
+        )
+
+    def _track_from_deezer(self, item: dict[str, Any]) -> TrackMetadata:
+        artist = item.get("artist") or {}
+        album = item.get("album") or {}
+        return TrackMetadata(
+            name=item.get("title", "Unknown Track"),
+            artist=artist.get("name", "Unknown Artist"),
+            album=album.get("title", "Unknown Album"),
+            released="Unknown",
+            duration=self._format_duration((item.get("duration") or 0) * 1000),
+            image=album.get("cover_xl") or album.get("cover_big") or "",
+            label="Deezer Catalog",
+            id=item.get("link", ""),
+        )
+
+    def _search_itunes_tracks(self, query: str, limit: int) -> List[TrackMetadata]:
+        data = self._request_json(
+            ITUNES_SEARCH_URL,
+            {"term": query, "entity": "song", "media": "music", "limit": limit},
+        )
+        return [
+            self._track_from_itunes(item)
+            for item in data.get("results", [])
+            if item.get("wrapperType") == "track"
+        ]
+
+    def _search_deezer_tracks(self, query: str, limit: int) -> List[TrackMetadata]:
+        data = self._request_json(
+            DEEZER_TRACK_SEARCH_URL, {"q": query, "limit": limit}
+        )
+        return [self._track_from_deezer(item) for item in data.get("data", [])]
+
     def get_track(self, query: str, limit: int = 6) -> List[TrackMetadata]:
         """
-        Searches for tracks based on a query and retrieves their metadata.
-
-        Args:
-            query (str): The search query for the track (e.g. track name - artist).
-            limit (int, optional): Maximum number of tracks to retrieve. Defaults to 6.
-
-        Returns:
-            List[TrackMetadata]: A list of track metadata.
-
-        Raises:
-            InvalidSearchLimit: If the limit is less than 1.
-            NoMatchingTrackFound: If no matching tracks are found.
+        Searches for tracks using public metadata APIs.
         """
         if limit < 1:
             raise InvalidSearchLimit
 
-        tracklist = []
-        result = self.spotify.search(q=query, type="track", limit=limit)
+        try:
+            tracks = self._search_itunes_tracks(query, limit)
+        except requests.RequestException:
+            tracks = []
 
-        if not result:
+        if not tracks:
+            try:
+                tracks = self._search_deezer_tracks(query, limit)
+            except requests.RequestException:
+                tracks = []
+
+        if not tracks:
             raise NoMatchingTrackFound
 
-        tracks = result["tracks"]["items"]
+        return tracks[:limit]
 
-        for track in tracks:
-            album_id = track["album"]["id"]
+    def _album_from_itunes(self, item: dict[str, Any], shuffle: bool) -> AlbumMetadata:
+        collection_id = item.get("collectionId")
+        tracks: List[str] = []
 
-            # If a track doesn't have an album id, skip it
-            if album_id is None:
-                continue
+        if collection_id:
+            data = self._request_json(
+                ITUNES_LOOKUP_URL, {"id": collection_id, "entity": "song"}
+            )
+            tracks = [
+                result.get("trackName", "")
+                for result in data.get("results", [])
+                if result.get("wrapperType") == "track" and result.get("trackName")
+            ]
 
-            album = self.spotify.album(album_id)
+        if shuffle:
+            random.shuffle(tracks)
 
-            if album is not None:
-                id = track["id"]
-                name = track["name"]
-                album_name = album["name"]
-                artist = track["artists"][0]["name"]
-                image = track["album"]["images"][0]["url"]
-
-                # If the label name is too long, use the artist's name
-                label = album["label"] if len(album["label"]) < 35 else artist
-
-                duration = self._format_duration(track["duration_ms"])
-                released = self._format_released(
-                    track["album"]["release_date"],
-                    track["album"]["release_date_precision"],
-                )
-
-                # Create TrackMetadata object with formatted data
-                metadata = {
-                    "name": name,
-                    "artist": artist,
-                    "album": album_name,
-                    "released": released,
-                    "duration": duration,
-                    "image": image,
-                    "label": label,
-                    "id": id,
-                }
-
-                tracklist.append(TrackMetadata(**metadata))
-
-        return tracklist
+        return AlbumMetadata(
+            name=item.get("collectionName", "Unknown Album"),
+            artist=item.get("artistName", "Unknown Artist"),
+            released=self._format_released(item.get("releaseDate")),
+            image=self._high_res_itunes_art(item.get("artworkUrl100")),
+            label="Apple Music Catalog",
+            id=item.get("collectionViewUrl", ""),
+            tracks=tracks,
+        )
 
     def get_album(
         self, query: str, limit: int = 6, shuffle: bool = False
     ) -> List[AlbumMetadata]:
         """
-        Searches for albums based on a query and retrieves their metadata, including track listing.
-
-        Args:
-            query (str): The search query for the album (e.g. album name - artist).
-            limit (int, optional): Maximum number of albums to retrieve. Defaults to 6.
-            shuffle (bool, optional): Shuffle the tracks in the tracklist. Defaults to False.
-
-        Returns:
-            List[AlbumMetadata]: A list of album metadata with track listings.
-
-        Raises:
-            InvalidSearchLimit: If the limit is less than 1.
-            NoMatchingAlbumFound: If no matching albums are found.
+        Searches for albums using Apple iTunes Search.
         """
-
         if limit < 1:
             raise InvalidSearchLimit
 
-        albumlist = []
-        result = self.spotify.search(q=query, type="album", limit=limit)
+        try:
+            data = self._request_json(
+                ITUNES_SEARCH_URL,
+                {"term": query, "entity": "album", "media": "music", "limit": limit},
+            )
+        except requests.RequestException as exc:
+            raise NoMatchingAlbumFound from exc
 
-        if not result:
+        albums = [
+            self._album_from_itunes(item, shuffle)
+            for item in data.get("results", [])
+            if item.get("collectionType") == "Album"
+        ]
+
+        if not albums:
             raise NoMatchingAlbumFound
 
-        albums = result["albums"]["items"]
+        return albums[:limit]
 
-        for album in albums:
-            id = album["id"]
-            album = self.spotify.album(id)
 
-            if album is not None:
-                # Extract track names from album details
-                items = album["tracks"]["items"]
-                tracks = [track["name"] for track in items]
-
-                # Shuffle tracks if true
-                if shuffle:
-                    random.shuffle(tracks)
-
-                id = album["id"]
-                name = album["name"]
-                artist = album["artists"][0]["name"]
-                image = album["images"][0]["url"]
-
-                # If the label name is too long, use the artist's name
-                label = album["label"] if len(album["label"]) < 35 else artist
-
-                released = self._format_released(
-                    album["release_date"],
-                    album["release_date_precision"],
-                )
-
-                # Create AlbumMetadata object with formatted data
-                metadata = {
-                    "name": name,
-                    "artist": artist,
-                    "released": released,
-                    "image": image,
-                    "label": label,
-                    "id": id,
-                    "tracks": tracks,
-                }
-
-                albumlist.append(AlbumMetadata(**metadata))
-
-        return albumlist
+def encode_query_url(query: str) -> str:
+    return f"https://music.apple.com/us/search?term={quote_plus(query)}"

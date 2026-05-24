@@ -8,6 +8,7 @@ import io
 import os
 import random
 import requests
+import qrcode
 
 from pathlib import Path
 from typing import List, Literal, Tuple, Optional
@@ -143,28 +144,71 @@ def scannable(
 
     variant = t.THEMES[theme]
 
+    if id.startswith(("http://", "https://")):
+        return link_code(id, theme)
+
     # URL to fetch the scannable code
     scan_url = f"https://scannables.scdn.co/uri/plain/png/101010/white/1280/spotify:{item}:{id}"
 
-    # Fetch the scannable image data from Spotify
-    data = requests.get(scan_url).content
-    img_bytes = io.BytesIO(data)
+    try:
+        response = requests.get(scan_url, timeout=20)
+        response.raise_for_status()
+        img_bytes = io.BytesIO(response.content)
 
-    with Image.open(img_bytes) as scan_code:
-        # Convert to RGBA to support transparency
-        scan_code = scan_code.convert("RGBA")
+        with Image.open(img_bytes) as scan_code:
+            # Convert to RGBA to support transparency
+            scan_code = scan_code.convert("RGBA")
 
-        pixels = scan_code.load()
-        width, height = scan_code.size
+            pixels = scan_code.load()
+            width, height = scan_code.size
 
-        # Iterate over all pixels and replace white pixels with transparency code
-        for x in range(width):
-            for y in range(height):
-                if pixels is not None:
-                    pixels[x, y] = c.TRANSPARENT if pixels[x, y] != c.WHITE else variant
+            # Iterate over all pixels and replace white pixels with transparency code
+            for x in range(width):
+                for y in range(height):
+                    if pixels is not None:
+                        pixels[x, y] = (
+                            c.TRANSPARENT if pixels[x, y] != c.WHITE else variant
+                        )
 
-        # Resize the image
-        return scan_code.resize(s.SCANCODE, Image.Resampling.BICUBIC)
+            # Resize the image
+            return scan_code.resize(s.SCANCODE, Image.Resampling.BICUBIC)
+    except (requests.RequestException, OSError):
+        return link_code(id, theme)
+
+
+def link_code(url: str, theme: ThemesSelector.Options = "Light") -> Image.Image:
+    """
+    Generates a compact QR code for non-Spotify track or album links.
+    """
+    variant = t.THEMES[theme]
+    qr = qrcode.QRCode(border=0, box_size=10)
+    qr.add_data(url)
+    qr.make(fit=True)
+
+    code = qr.make_image(fill_color=variant, back_color=(255, 255, 255)).convert(
+        "RGBA"
+    )
+    pixels = code.load()
+    width, height = code.size
+    for x in range(width):
+        for y in range(height):
+            if pixels is not None and pixels[x, y][:3] == (255, 255, 255):
+                pixels[x, y] = c.TRANSPARENT
+
+    code = code.resize((s.SCANCODE[1], s.SCANCODE[1]), Image.Resampling.NEAREST)
+
+    canvas = Image.new("RGBA", s.SCANCODE, c.TRANSPARENT)
+    canvas.paste(code, (0, 0), code)
+
+    draw = ImageDraw.Draw(canvas)
+    bar_x = s.SCANCODE[1] + 35
+    bar_top = 34
+    for index, height in enumerate([92, 58, 114, 74, 104, 46, 96, 66, 116, 80]):
+        x = bar_x + index * 34
+        y0 = bar_top + (116 - height) // 2
+        draw.rounded_rectangle((x, y0, x + 12, y0 + height), radius=6, fill=variant)
+
+    return canvas
 
 
 def cover(url: str, path: Optional[str]) -> Image.Image:

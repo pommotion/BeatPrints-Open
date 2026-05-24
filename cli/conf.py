@@ -21,8 +21,8 @@ try:
     # Grab the configuration needed
     POSTERS_DIR = config["general"]["output_directory"]
     SEARCH_LIMIT = config["general"]["search_limit"]
-    CLIENT_ID = config["credentials"]["client_id"]
-    CLIENT_SECRET = config["credentials"]["client_secret"]
+    CLIENT_ID = config.get("credentials", {}).get("client_id")
+    CLIENT_SECRET = config.get("credentials", {}).get("client_secret")
 
 except FileNotFoundError:
     print("The config file for BeatPrints doesn't exist. Please create one properly.")
