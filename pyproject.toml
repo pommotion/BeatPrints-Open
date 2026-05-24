@@ -1,3 +1,31 @@
+[project]
+name = "beatprints-open"
+version = "1.1.6.post1"
+description = "Create Pinterest-style music posters with open metadata providers."
+readme = "README.md"
+requires-python = ">=3.12,<4.0"
+license = "CC-BY-NC-SA-4.0"
+authors = [{ name = "elysianmyst", email = "74355265+TrueMyst@users.noreply.github.com" }]
+keywords = ["music", "lyrics", "pinterest", "lrclibapi", "itunes", "deezer"]
+dependencies = [
+    "requests",
+    "pylette",
+    "pillow",
+    "lrclibapi",
+    "fonttools",
+    "questionary",
+    "rich",
+    "toml",
+    "qrcode",
+]
+
+[project.urls]
+Repository = "https://github.com/pommotion/BeatPrints-Open"
+
+[project.scripts]
+beatprints = "cli.prompt:main"
+beatprints-web = "web.app:main"
+
 [tool.poetry]
 name = "BeatPrints-Open"
 version = "1.1.6.post1"
