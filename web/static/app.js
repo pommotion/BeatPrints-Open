@@ -2,6 +2,7 @@ const state = {
   results: [],
   selected: null,
   lines: [],
+  lyricsSource: "",
   poster: null,
 };
 
@@ -45,6 +46,7 @@ function renderLyrics() {
   const list = $("#lyrics");
   list.innerHTML = "";
   $("#lyricsCount").textContent = `${state.lines.length} lines`;
+  $("#lyricsEmpty").hidden = state.lines.length > 0;
   const { start, end } = selectedRange();
 
   state.lines.forEach((line, index) => {
@@ -77,6 +79,9 @@ async function search(event) {
   state.results = payload.results || [];
   state.selected = null;
   state.lines = [];
+  state.lyricsSource = "";
+  $("#lyricsNotice").textContent = "Lyrics lookup will try LRCLIB, then lyrics.ovh.";
+  $("#customLyrics").value = "";
   renderResults();
   renderLyrics();
   setStatus(state.results.length ? "Pick a track" : "No matches");
@@ -85,6 +90,9 @@ async function search(event) {
 async function selectTrack(track) {
   state.selected = track;
   state.lines = [];
+  state.lyricsSource = "";
+  $("#customLyrics").value = "";
+  $("#lyricsNotice").textContent = "Trying LRCLIB, then lyrics.ovh.";
   renderResults();
   $("#previewTitle").textContent = `${track.name} · ${track.artist}`;
   $("#previewMeta").textContent = `${track.album} · ${track.released}`;
@@ -98,19 +106,30 @@ async function selectTrack(track) {
   const payload = await response.json();
 
   if (!response.ok || payload.error) {
-    setStatus("Lyrics failed");
-    alert(payload.error || "Lyrics lookup failed.");
+    state.lines = [];
+    renderLyrics();
+    $("#generate").disabled = false;
+    $("#lyricsNotice").textContent = "Lyrics lookup failed. You can still paste lyrics manually.";
+    setStatus("Add lyrics");
     return;
   }
 
   state.lines = payload.lines || [];
+  state.lyricsSource = payload.source || "";
   if (state.lines.length >= 4) {
     $("#lineStart").value = 1;
     $("#lineEnd").value = 4;
   }
   renderLyrics();
   $("#generate").disabled = false;
-  setStatus(state.lines.length ? "Ready" : "Add lyrics");
+  if (state.lines.length) {
+    $("#lyricsNotice").textContent = `Lyrics loaded from ${state.lyricsSource}. Edit manual lyrics only if you want to override.`;
+    setStatus("Ready");
+  } else {
+    $("#lyricsNotice").textContent =
+      payload.warning || "No lyrics found in available libraries. Paste lyrics manually to generate.";
+    setStatus("Add lyrics");
+  }
 }
 
 async function generatePoster() {

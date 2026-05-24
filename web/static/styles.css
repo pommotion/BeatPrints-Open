@@ -131,7 +131,6 @@ select {
 }
 
 textarea {
-  margin-top: 18px;
   padding: 12px;
   resize: vertical;
   line-height: 1.45;
@@ -251,6 +250,19 @@ button:disabled,
   background: var(--teal);
 }
 
+.manual-lyrics {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.manual-lyrics p,
+.lyrics-empty {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .preview {
   display: grid;
   grid-template-rows: auto minmax(380px, 1fr) minmax(170px, 240px);
@@ -323,6 +335,10 @@ button:disabled,
   gap: 6px 18px;
   margin: 0;
   padding: 0 0 0 22px;
+}
+
+.lyrics-panel ol:empty {
+  display: none;
 }
 
 .lyrics-panel li {

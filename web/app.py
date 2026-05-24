@@ -97,7 +97,10 @@ class AppHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0"))
         if length == 0:
             return {}
-        return json.loads(self.rfile.read(length).decode("utf-8"))
+        try:
+            return json.loads(self.rfile.read(length).decode("utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError("Invalid JSON request body.") from exc
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -146,21 +149,36 @@ class AppHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
 
         if parsed.path == "/api/lyrics":
-            payload = self._read_json()
+            try:
+                payload = self._read_json()
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+                return
             track = _metadata_from_payload(payload.get("track", {}))
 
             try:
-                text = LYRICS.get_lyrics(track)
+                text, source = LYRICS.get_lyrics_with_source(track)
                 lines = [line for line in text.splitlines() if line.strip()]
-                self._send_json({"lyrics": text, "lines": lines})
+                self._send_json({"lyrics": text, "lines": lines, "source": source})
             except errors.NoLyricsAvailable:
-                self._send_json({"lyrics": "", "lines": [], "warning": "No lyrics found."})
+                self._send_json(
+                    {
+                        "lyrics": "",
+                        "lines": [],
+                        "source": "",
+                        "warning": "No lyrics found. Enter custom lyrics to generate a poster.",
+                    }
+                )
             except Exception as exc:
                 self._send_json({"error": str(exc)}, HTTPStatus.BAD_GATEWAY)
             return
 
         if parsed.path == "/api/generate":
-            payload = self._read_json()
+            try:
+                payload = self._read_json()
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+                return
             track = _metadata_from_payload(payload.get("track", {}))
             theme = payload.get("theme", "Light")
             accent = bool(payload.get("accent", False))

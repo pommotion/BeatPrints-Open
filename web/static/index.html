@@ -57,7 +57,11 @@
             </label>
           </div>
 
-          <textarea id="customLyrics" rows="4" placeholder="Optional: write four custom lyrics lines"></textarea>
+          <div class="manual-lyrics">
+            <label for="customLyrics">Manual lyrics</label>
+            <textarea id="customLyrics" rows="4" placeholder="Paste or write four lyric lines when lookup misses"></textarea>
+            <p id="lyricsNotice">Lyrics lookup will try LRCLIB, then lyrics.ovh.</p>
+          </div>
 
           <button class="generate" id="generate" disabled>Generate poster</button>
         </aside>
@@ -84,6 +88,7 @@
               <h2>Lyrics</h2>
               <span id="lyricsCount">0 lines</span>
             </div>
+            <p class="lyrics-empty" id="lyricsEmpty">No lyrics loaded.</p>
             <ol id="lyrics"></ol>
           </div>
         </section>

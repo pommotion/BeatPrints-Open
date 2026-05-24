@@ -5,6 +5,10 @@ Provides functionality for retrieving song lyrics using the LRClib API.
 """
 
 import re
+
+from urllib.parse import quote
+
+import requests
 from lrclib import LrcLibAPI
 
 from BeatPrints.spotify import TrackMetadata
@@ -57,25 +61,54 @@ class Lyrics:
         Raises:
             NoLyricsAvailable: If no lyrics are found for the specified track and artist.
         """
+        lyrics, _source = self.get_lyrics_with_source(metadata)
+        return lyrics
+
+    def get_lyrics_with_source(self, metadata: TrackMetadata) -> tuple[str, str]:
         api = LrcLibAPI(
             user_agent="Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0"
         )
-        results = api.search_lyrics(
-            track_name=metadata.name, artist_name=metadata.artist
-        )
+        results = api.search_lyrics(track_name=metadata.name, artist_name=metadata.artist)
 
-        if not results:
-            raise NoLyricsAvailable
+        if results:
+            if results[0].instrumental:
+                return i.DESC, "LRCLIB"
 
-        if self.check_instrumental(metadata):
-            return i.DESC
+            lyrics = api.get_lyrics_by_id(results[0].id).plain_lyrics
 
-        lyrics = api.get_lyrics_by_id(results[0].id).plain_lyrics
+            if lyrics:
+                return lyrics, "LRCLIB"
 
-        if not lyrics:
-            raise NoLyricsAvailable
+        fallback = self._get_lyrics_from_lyrics_ovh(metadata)
+        if fallback:
+            return fallback, "lyrics.ovh"
 
-        return lyrics
+        raise NoLyricsAvailable
+
+    def _get_lyrics_from_lyrics_ovh(self, metadata: TrackMetadata) -> str:
+        artist = quote(metadata.artist, safe="")
+        title = quote(metadata.name, safe="")
+        try:
+            response = requests.get(
+                f"https://api.lyrics.ovh/v1/{artist}/{title}",
+                timeout=8,
+            )
+        except requests.RequestException:
+            return ""
+
+        if response.status_code == 404:
+            return ""
+
+        try:
+            response.raise_for_status()
+        except requests.RequestException:
+            return ""
+
+        try:
+            lyrics = response.json().get("lyrics", "")
+        except ValueError:
+            return ""
+        return lyrics.replace("\r\n", "\n").strip()
 
     def select_lines(self, lyrics: str, selection: str) -> str:
         """
